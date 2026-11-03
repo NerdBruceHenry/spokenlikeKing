@@ -1,0 +1,13 @@
+{
+  "name": "Spoken Like a King",
+  "short_name": "SpokenKing",
+  "description": "英语听力 + 口语练习：地道美式口语",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f3ff",
+  "theme_color": "#6c4cf5",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
