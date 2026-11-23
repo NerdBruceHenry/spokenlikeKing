@@ -1,6 +1,7 @@
 // Text-to-speech (American voices), speech recognition, voice recording, and a
 // tiny IndexedDB store so parents can listen back to recordings.
 import { state } from './state.js';
+import { VOICES, clipId } from './audio-keys.js';
 
 const synth = window.speechSynthesis;
 export const hasTTS = !!synth;
@@ -35,14 +36,17 @@ export function voicesReady(timeout = 1500) {
 }
 
 // Higher = more natural sounding. Neural/"Natural"/"Enhanced" voices are much better.
-const PREFERRED = [/natural/i, /neural/i, /premium/i, /enhanced/i, /google us english/i, /samantha/i,
-  /aria/i, /jenny/i, /guy/i, /ava/i, /allison/i, /evan/i, /nathan/i, /zoe/i, /alex/i];
+// (Only used when no pre-generated clip exists, e.g. AI buddy replies.)
+const PREFERRED = [/online \(natural\)/i, /natural/i, /neural/i, /premium/i, /enhanced/i, /google us english/i,
+  /\b(ava|jenny|aria|emma|andrew|brian|guy|michelle)\b/i, /samantha/i, /allison|evan|nathan|zoe|alex/i];
+// Robotic or joke voices that sound nothing like a real person.
+const ROBOTIC = /espeak|compact|zira|david|mark|fred|albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|kathy|grandpa|grandma|rocko|shelley|eddy|flo|reed|sandy/i;
 
 export function americanVoices() {
   const us = voiceCache.filter((v) => /^en[-_]US/i.test(v.lang));
   const score = (v) => {
     const i = PREFERRED.findIndex((re) => re.test(v.name));
-    return (i === -1 ? 0 : 100 - i) + (v.localService ? 0 : 5);
+    return (i === -1 ? 0 : 100 - i * 5) + (v.localService ? 0 : 3) - (ROBOTIC.test(v.name) && i < 4 ? 200 : 0);
   };
   return us.sort((a, b) => score(b) - score(a));
 }
@@ -58,21 +62,112 @@ function currentVoice(which = 'main') {
   return list.find((v) => v !== main) || main;
 }
 
+// ---------------- pre-generated neural voice clips ----------------
+// Every fixed sentence in the app has a natural-sounding clip (normal + slow)
+// made by tools/gen_audio.py. Anything else (e.g. AI buddy replies) falls back
+// to the browser's built-in voice.
+const AUDIO_BASE = new URL('../audio/', import.meta.url);
+let clips = null; // { voiceName: { n: Set, s: Set } }
+const clipsReady = fetch(new URL('manifest.json', AUDIO_BASE))
+  .then((r) => (r.ok ? r.json() : null))
+  .then((m) => {
+    if (!m) return;
+    clips = {};
+    for (const [v, { n, s }] of Object.entries(m.clips)) clips[v] = { n: new Set(n), s: new Set(s) };
+  })
+  .catch(() => {});
+
+const player = typeof Audio !== 'undefined' ? new Audio() : null;
+if (player) {
+  player.preload = 'auto';
+  player.preservesPitch = player.webkitPreservesPitch = true;
+  // iOS only lets an <audio> element play from script once it has played inside a tap.
+  const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+  const unlock = () => {
+    window.removeEventListener('pointerdown', unlock, true);
+    if (player.src) return;
+    player.src = SILENT;
+    player.play().catch(() => {});
+  };
+  window.addEventListener('pointerdown', unlock, true);
+}
+
+/** Path of the best clip for this text, or null. */
+function clipFor(text, voiceKey, slow) {
+  if (!clips) return null;
+  const id = clipId(text);
+  for (const key of [voiceKey in VOICES ? voiceKey : 'main', 'main']) {
+    const v = VOICES[key];
+    const c = clips[v];
+    if (!c) continue;
+    if (slow && c.s.has(id)) return { url: new URL(`${v}/${id}-s.mp3`, AUDIO_BASE).href, slow: true };
+    if (c.n.has(id)) return { url: new URL(`${v}/${id}.mp3`, AUDIO_BASE).href, slow: false };
+  }
+  return null;
+}
+
+let endClip = null; // resolves the clip that is currently playing
+function stopClip() {
+  if (!player) return;
+  player.pause();
+  endClip?.(false);
+}
+
+/** Resolves true when finished, false if interrupted, null if it could not play (→ use TTS). */
+function playClip(clip, rate, token) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      player.onended = player.onerror = null;
+      if (endClip === finish) endClip = null;
+      resolve(v);
+    };
+    endClip = finish;
+    player.onended = () => finish(token === speakToken);
+    player.onerror = () => finish(null);
+    player.src = clip.url;
+    player.playbackRate = Math.min(2, Math.max(0.5, rate));
+    player.play().catch(() => finish(null));
+  });
+}
+
 let speakToken = 0;
 /**
  * Speak English text. Resolves when finished (or cancelled).
- * opts: { rate, voice: 'main'|'alt', onWord(charIndex) }
+ * opts: { rate, voice: 'main'|'alt'|'female'|'male', onWord(charIndex) }
+ * rate < 0.8 means "slow": it uses the slow clip recorded at a calm, clearly slower pace.
  */
-export function speak(text, opts = {}) {
+export async function speak(text, opts = {}) {
+  const token = ++speakToken;
+  synth?.cancel();
+  stopClip();
+  await clipsReady;
+  if (token !== speakToken) return false;
+  const rate = opts.rate || 1;
+  const slow = rate < 0.8;
+  const clip = opts.tts ? null : clipFor(text, opts.voice || 'main', slow);
+  if (clip) {
+    // settings.rate is the parent's speed slider (0.95 = default = clip's natural pace).
+    const user = state.settings.rate / 0.95;
+    const ok = await playClip(clip, user * (clip.slow ? 1 : rate), token);
+    if (ok !== null) return ok;
+    if (token !== speakToken) return false;
+  }
+  return speakTTS(text, opts, token);
+}
+
+function speakTTS(text, opts, token) {
   return new Promise((resolve) => {
     if (!synth) return resolve();
-    const token = ++speakToken;
-    synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
     const v = currentVoice(opts.voice || 'main');
     if (v) u.voice = v;
     u.lang = 'en-US';
-    u.rate = (opts.rate || 1) * state.settings.rate;
+    const r = opts.rate || 1;
+    // Browser voices barely slow down at 0.65, so push "slow" further to make it clearly different.
+    u.rate = (r < 0.8 ? 0.55 : r) * state.settings.rate;
     u.pitch = opts.pitch || 1;
     let done = false;
     const finish = () => {
@@ -100,6 +195,7 @@ export function stopSpeaking() {
   speakToken++;
   linesSession++;
   synth?.cancel();
+  stopClip();
 }
 
 /** Speak a list of lines one after another (stories, dialogues). Resolves false if interrupted. */

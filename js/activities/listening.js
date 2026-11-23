@@ -5,7 +5,7 @@ import { compare } from '../score.js';
 import { colorize, progressBar, choice, finishScreen } from '../components.js';
 import { state, addXP, markDone } from '../state.js';
 import { STORIES } from '../data/stories.js';
-import { SHADOW_PACKS } from '../data/practice.js';
+import { SHADOW_PACKS, REAL_SPEED } from '../data/practice.js';
 import { PHRASES } from '../data/phrases.js';
 import { SOUNDS } from '../data/sounds.js';
 import { menuGrid } from './common.js';
@@ -220,23 +220,6 @@ export function runNumbers(root, count = 8) {
 }
 
 // ---------------- Real speed (reductions & linking) ----------------
-const REAL_SPEED = [
-  ['Whaddaya wanna do?', 'What do you want to do?', ['What did you want to do?', 'Where do you want to go?']],
-  ['I\'m gonna be late.', 'I\'m going to be late.', ['I\'m gone to be late.', 'I was going to be late.']],
-  ['I gotta go.', 'I\'ve got to go.', ['I got a goal.', 'I want to go.']],
-  ['Lemme see.', 'Let me see.', ['Lemon sea.', 'Let\'s see.']],
-  ['Didja eat yet?', 'Did you eat yet?', ['Did she eat yet?', 'Do you eat yet?']],
-  ['Gimme a sec.', 'Give me a second.', ['Give me a snack.', 'Get me a sec.']],
-  ['I dunno.', 'I don\'t know.', ['I\'m done now.', 'I do know.']],
-  ['Whatcha doing?', 'What are you doing?', ['What is he doing?', 'Watch out doing!']],
-  ['It\'s kinda cold.', 'It\'s kind of cold.', ['It\'s kind and cold.', 'It\'s getting cold.']],
-  ['You shoulda told me.', 'You should have told me.', ['You should tell me.', 'You showed her to me.']],
-  ['Wouldja help me?', 'Would you help me?', ['Would she help me?', 'Will you help me?']],
-  ['Get outta here!', 'Get out of here!', ['Get out there!', 'Get it over here!']],
-  ['I hafta finish this.', 'I have to finish this.', ['I half finished this.', 'I had to finish this.']],
-  ['Check it out!', 'Check it out!', ['Chicken out!', 'Check that out!']],
-  ['Not at all.', 'Not at all.', ['Not a tall.', 'Not that all.']],
-];
 
 export function runRealSpeed(root, count = 8) {
   const items = sample(REAL_SPEED, count);

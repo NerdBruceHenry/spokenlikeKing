@@ -26,7 +26,7 @@ export function page(root, nav) {
       h('div', { class: 'row center wrap' },
         btn('🔀 Another topic', () => { prompt = pick(promptsForLevel()); render(); }, 'soft'),
         [30, 60, 90].map((s) => btn(`${s}s`, () => { seconds = s; render(); }, 'chip' + (s === seconds ? ' on' : '')))),
-      h('div', { class: 'row center' }, btn('🎙️ Start talking!', async () => {
+      h('div', { class: 'row center' }, btn('🎙️ Let\'s talk!', async () => {
         const r = await runTalk(root, prompt, seconds);
         finishScreen(root, { score: r.score, xp: r.xp, title: 'You did it! 🎤', extra: r.summary, onDone: () => nav.go('freetalk', {}, true) });
       }, 'primary big')),
@@ -60,7 +60,14 @@ export function runTalk(root, prompt, seconds = 60) {
     const timer = h('div', { class: 'timer' }, String(seconds));
     const transcript = h('div', { class: 'transcript' }, hasASR ? h('span', { class: 'muted' }, 'Your words will appear here…') : h('span', { class: 'muted' }, '（此浏览器不支持语音转文字，只录音）'));
     const stopBtn = btn('⏹ I\'m done', () => finish(), 'soft');
-    root.replaceChildren(h('div', { class: 'activity' }, promptCard(prompt), timer, transcript, h('div', { class: 'row center' }, stopBtn)));
+    const controls = h('div', { class: 'row center' });
+    const hint = h('p', { class: 'muted small center' }, zh('先看看题目、想一想要说什么，准备好了再点"开始"。'));
+    root.replaceChildren(h('div', { class: 'activity' }, promptCard(prompt), timer, hint, transcript, controls));
+
+    // Wait until the child is ready: nothing is timed or recorded before they tap Start.
+    await new Promise((go) => controls.replaceChildren(btn('▶ Start 开始', go, 'primary big')));
+    hint.remove();
+    controls.replaceChildren();
 
     for (const n of ['3', '2', '1', 'Go!']) {
       timer.textContent = n;
@@ -83,6 +90,7 @@ export function runTalk(root, prompt, seconds = 60) {
     let finished = false;
     let left = seconds;
     timer.textContent = String(left);
+    controls.replaceChildren(stopBtn);
     const iv = setInterval(() => {
       left--;
       timer.textContent = String(Math.max(0, left));

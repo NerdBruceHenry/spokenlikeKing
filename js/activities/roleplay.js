@@ -7,6 +7,7 @@ import { colorize, finishScreen } from '../components.js';
 import { state, addXP, markDone } from '../state.js';
 import { SCENES } from '../data/scenes.js';
 import { menuGrid } from './common.js';
+import { partnerVoice } from '../audio-keys.js';
 
 export function page(root, nav, params = {}) {
   if (params.id) {
@@ -37,7 +38,7 @@ export function page(root, nav, params = {}) {
 
 function replay(scene, said) {
   let k = 0;
-  const lines = scene.lines.map((l) => (l.b ? { text: l.b, voice: 'alt' } : { text: said[k++] || l.k[0].en, voice: 'main' }));
+  const lines = scene.lines.map((l) => (l.b ? { text: l.b, voice: partnerVoice(scene.partner) } : { text: said[k++] || l.k[0].en, voice: 'main' }));
   speakLines(lines, { gap: 350 });
 }
 
@@ -72,9 +73,9 @@ export function runScene(root, scene) {
       }
       const line = scene.lines[idx];
       if (line.b) {
-        bubble('bot', line.b, line.zh, btn('🔊', () => speak(line.b, { voice: 'alt' }), 'chip tiny'));
+        bubble('bot', line.b, line.zh, btn('🔊', () => speak(line.b, { voice: partnerVoice(scene.partner) }), 'chip tiny'));
         panel.replaceChildren(h('div', { class: 'muted center' }, '…'));
-        await speak(line.b, { voice: 'alt' });
+        await speak(line.b, { voice: partnerVoice(scene.partner) });
         idx++;
         step();
       } else {

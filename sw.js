@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever files change.
-const VERSION = 'slk-v1';
+const VERSION = 'slk-v2';
 const FILES = [
   './',
   './index.html',
@@ -19,6 +19,8 @@ const FILES = [
   "./js/activities/soundlab.js",
   "./js/activities/twisters.js",
   "./js/app.js",
+  "./js/audio-keys.js",
+  "./audio/manifest.json",
   "./js/components.js",
   "./js/data/levels.js",
   "./js/data/phrases.js",

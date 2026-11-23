@@ -85,7 +85,7 @@ AI 伙伴的提示词要求它：使用自然口语、按孩子等级调整用�
 ## 技术说明
 
 - 纯 HTML/CSS/原生 JavaScript（ES Modules），**无需构建**，无第三方依赖（AI 伙伴使用时才从 CDN 加载 Anthropic 官方 JS SDK）。
-- 朗读：Web Speech API `speechSynthesis`，自动挑选最自然的美式声音（可在家长中心更换）。
+- 朗读：课程里所有固定句子都预先用开源神经网络语音 [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)（Apache-2.0）生成了自然的美式真人感音频（`audio/`），每句都有正常语速和明显放慢的慢速两版；对话角色按性别用不同声音。没有预生成音频的内容（如 AI 伙伴的回复）才退回浏览器自带的 `speechSynthesis`，并自动挑选最自然的美式声音。
 - 识别：Web Speech API `SpeechRecognition`（`en-US`），取多个候选结果与目标句做词级对齐打分（处理缩写、gonna↔going to、数字等）。
 - 录音：`MediaRecorder`，录音存于 IndexedDB（只在本设备，最多保留 40 条）。
 - 进度：localStorage；可在家长中心导出/导入 JSON 备份。
@@ -96,7 +96,10 @@ index.html              入口
 css/style.css           样式（支持深色模式、手机优先）
 js/app.js               路由、首页、贴纸册、练习计时
 js/state.js             进度、等级、间隔重复
-js/speech.js            朗读、识别、录音、录音存储
+js/speech.js            朗读（优先播放 audio/ 预生成音频）、识别、录音、录音存储
+js/audio-keys.js        句子 → 音频文件名（app 和生成脚本共用）
+audio/                  预生成语音：<声音>/<id>.mp3（正常）和 <id>-s.mp3（慢速），manifest.json 列出已有的文件
+tools/                  生成语音的脚本
 js/score.js             打分算法（有单元测试）
 js/components.js        "跟我说"卡片、选择题等通用组件
 js/activities/*.js      各练习模块
@@ -109,3 +112,13 @@ tests/                  node --test 单元测试
 ### 扩充内容
 
 所有课程内容都在 `js/data/` 下，是普通的 JS 数组，照着现有格式添加即可（例如在 `phrases.js` 里加一行 `['Phrase', '中文', 'Example.', 等级, '类别']`）。修改文件后记得把 `sw.js` 里的 `VERSION` 加一，让已安装的设备更新缓存。
+
+新增或修改了句子后，重新生成语音（只会生成缺少的音频，已有的不动）：
+
+```bash
+pip install "kokoro>=0.9.4" soundfile   # 另需 ffmpeg
+node tools/collect-texts.mjs             # 收集所有要朗读的句子 → tools/texts.json
+python tools/gen_audio.py                # 生成 audio/ 下的 mp3 和 manifest.json
+```
+
+不重新生成也能用：新句子会自动用浏览器自带的声音朗读。
