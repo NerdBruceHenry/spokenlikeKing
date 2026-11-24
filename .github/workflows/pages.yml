@@ -31,12 +31,20 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
+      # GitHub sometimes cannot see the artifact right after upload: wait, then retry once
+      - run: sleep 20
       - id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - if: steps.deployment.outcome == 'failure'
+        id: retry
         uses: actions/deploy-pages@v4
