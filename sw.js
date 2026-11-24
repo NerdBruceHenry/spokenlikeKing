@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever files change.
-const VERSION = 'slk-v2';
+const VERSION = 'slk-v3';
 const FILES = [
   './',
   './index.html',
@@ -39,8 +39,9 @@ self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
 
+// Other apps share this origin: only clear our own old caches.
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('slk-') && k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 // Network first (so updates arrive), falling back to cache when offline.
